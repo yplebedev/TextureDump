@@ -8,7 +8,8 @@
 	This does one specific thing, relatively well, and nothing more. Check in with ReShade docs and the #addon-programming chat in discord.
 
 	For contributors:
-		1) declare RESHADE_PATH env variable to the !root! of a cloned repo of ReShade. This is required to compile the project!
+		!!! IMPORTANT !!!
+		Declare RESHADE_PATH env variable to the !root! of a cloned repo of ReShade. This is required to compile the project!
 */
 #define TINYEXR_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
