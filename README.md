@@ -1,5 +1,4 @@
-# TextureDump
-## A Texture saving utility for ReShade
+# TextureDump — A Texture saving utility for ReShade
 
 Current features:
 - Supports 32 bit floats as EXR and 8 bit for unorm
