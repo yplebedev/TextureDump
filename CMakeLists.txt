@@ -14,6 +14,12 @@ include_directories(lib/tinyexr)
 include_directories(lib/stb)
 
 add_library(TextureDump SHARED main.cpp
-        lib/tinyexr/deps/miniz/miniz.c)
+        lib/tinyexr/deps/miniz/miniz.c
+        NamedTexture.h
+        SaveData.h
+        ISavingStrategy.h
+        SavingStrategiesImpl.h
+        Utils.h
+        CallbackFunctions.h)
 
 set_target_properties(TextureDump PROPERTIES SUFFIX .addon64)
