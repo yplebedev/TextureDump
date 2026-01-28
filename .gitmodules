@@ -1,0 +1,6 @@
+[submodule "lib/tinyexr"]
+	path = lib/tinyexr
+	url = https://github.com/syoyo/tinyexr.git
+[submodule "lib/stb"]
+	path = lib/stb
+	url = https://github.com/nothings/stb.git

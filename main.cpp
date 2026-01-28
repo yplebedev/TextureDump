@@ -10,8 +10,6 @@
 	For contributors:
 		1) declare RESHADE_PATH env variable to the !root! of a cloned repo of ReShade. This is required to compile the project!
 */
-
-
 #define TINYEXR_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #define ENTIRE_RESOURCE nullptr
@@ -24,13 +22,13 @@
 	static constexpr bool do_debug_logs = false;
 #endif
 
+#define NOMINMAX
 #include <imgui.h>
-#include <unordered_map>
 #include <vector>
 #include <reshade.hpp>
 #include <chrono>
-#include <thread>
 #include <fstream>
+
 #include "tinyexr.h"
 #include "stb_image_write.h"
 
@@ -47,17 +45,17 @@ class NamedTexture {
 		api::effect_texture_variable tex_variable;
 		std::string name;
 
-		NamedTexture(bool used, api::effect_texture_variable tex_variable, std::string name) {
+		NamedTexture(bool used, const api::effect_texture_variable tex_variable, const std::string& name) {
 			this->used = used;
 			this->tex_variable = tex_variable;
 			this->name = name;
 		}
 
-		api::resource_desc get_desc(api::effect_runtime *runtime) {
+		api::resource_desc get_desc(api::effect_runtime *runtime) const {
 			return runtime->get_device()->get_resource_desc(get_resource(runtime));
 		}
 
-		api::resource clone_resource(api::effect_runtime *runtime) {
+		api::resource clone_resource(api::effect_runtime *runtime) const {
 			api::resource intermediate;
 			api::device *device = runtime->get_device();
 			api::resource_desc desc = get_desc(runtime);
@@ -70,28 +68,25 @@ class NamedTexture {
 			throw "Failed to copy resource!";
 		}
 
-		api::resource get_resource(api::effect_runtime *runtime) {
+		api::resource get_resource(api::effect_runtime *runtime) const {
 			return runtime->get_device()->get_resource_from_view(get_resource_view(runtime));
 		}
 
-		api::format get_format(api::effect_runtime *runtime) {
+		api::format get_format(api::effect_runtime *runtime) const {
 			return get_desc(runtime).texture.format;
 		}
 
 	private:
-		api::resource_view get_resource_view(api::effect_runtime *runtime) {
+		api::resource_view get_resource_view(const api::effect_runtime *runtime) const {
 			api::resource_view rtv { 0 };
-			api::resource_view rtv_srgb { 0 };
 			runtime->get_texture_binding(tex_variable, &rtv, nullptr);
 
 			return rtv;
 		}
 };
 
-abstract_class ISavingStrategy;
 static char buffer[32] = "SCGI.fx";
 static std::vector<NamedTexture> textures;
-static std::vector<ISavingStrategy*> strategies;
 
 enum class SaveStatus {
 	ok = 0,
@@ -105,7 +100,7 @@ enum class SaveStatus {
 
 class SaveData {
 	public:
-		SaveData(api::format format, std::string initial_name, void *data, uint32_t w, uint32_t h, uint32_t pitch) {
+		SaveData(api::format format, const std::string& initial_name, void *data, uint32_t w, uint32_t h, uint32_t pitch) {
 			this->format = format;
 			this->filename = initial_name;
 			this->raw_data = data;
@@ -113,11 +108,11 @@ class SaveData {
 			this->pitch = pitch;
 		}
 
-		uint32_t get_approx_channels() {
+		uint32_t get_approx_channels() const {
 			uint32_t bpc = api::format_bit_depth(format);
 			if (!bpc) bpc = 8;
-			uint32_t pitch = api::format_row_pitch(format, 1);
-			return (pitch * 8u) / bpc;
+			uint32_t format_pitch = api::format_row_pitch(format, 1);
+			return (format_pitch * 8u) / bpc;
 		}
 
 		std::string filename;
@@ -127,9 +122,9 @@ class SaveData {
 		uint32_t pitch;
 };
 
-
 abstract_class ISavingStrategy {
 	public:
+		virtual ~ISavingStrategy() = default;
 		virtual void save(SaveData data) = 0;
 		virtual bool match(api::format format) = 0;
 	private:
@@ -205,7 +200,9 @@ private:
 	}
 };
 
-void safe_copy_contents(NamedTexture source, api::resource dest, api::effect_runtime *runtime, api::command_list *cmd_list) {
+static std::vector<ISavingStrategy*> strategies;
+
+void safe_copy_contents(const NamedTexture& source, api::resource dest, api::effect_runtime *runtime, api::command_list *cmd_list) {
 	api::device *device = runtime->get_device();
 	api::resource source_resource = source.get_resource(runtime);
 
@@ -227,7 +224,7 @@ api::subresource_data map_data(api::device *device, api::resource source) {
 	return data;
 }
 
-SaveStatus save_texture(api::effect_runtime *runtime, api::command_list *cmd_list, NamedTexture texture) {
+SaveStatus save_texture(api::effect_runtime *runtime, api::command_list *cmd_list, const NamedTexture& texture) {
 	api::resource intermediate = texture.clone_resource(runtime);
 	safe_copy_contents(texture, intermediate, runtime, cmd_list);
 	api::subresource_data host_data = map_data(runtime->get_device(), intermediate);
@@ -246,50 +243,11 @@ SaveStatus save_texture(api::effect_runtime *runtime, api::command_list *cmd_lis
 	return SaveStatus::ok;
 }
 
-void print_skip(std::string name) {
-	if (do_debug_logs) {
-		std::stringstream ss;
-		ss << "Texture " << name << " skipped saving.";
-		message(level::debug, ss.str().c_str());
-	}
-}
-
-void print_ok(std::string name) {
-	std::stringstream ss;
-	ss << "Texture " << name << " saved!";
-	message(level::info, ss.str().c_str());
-}
-
-void report_saving_error(std::string name, int err_status) {
-	std::stringstream ss;
-	ss << "Texture " << name << " failed to save with code " << err_status;
-	message(level::error, ss.str().c_str());
-	MessageBoxA(NULL, "ERROR!", ss.str().c_str(), MB_ICONERROR);
-}
-
-void report_unhandled_strategy(std::string name) {
-	std::stringstream ss;
-	ss << "Texture " << name << " uses an unsupported format. Change it, recompile and try again or look for addon updates.";
-	message(level::error, ss.str().c_str());
-	MessageBoxA(NULL, "ERROR!", ss.str().c_str(), MB_ICONERROR);
-}
-
 void on_finish_effects(api::effect_runtime *runtime, api::command_list *cmd_list, api::resource_view rtv, api::resource_view rtv_srgb) {
 	if (runtime->is_key_pressed(VK_INSERT)) {
-		for (auto tex : textures) {
+		for (const auto& tex : textures) {
 			if (!tex.used) continue;
-			SaveStatus status = save_texture(runtime, cmd_list, tex);
-
-			// Explicit verbose errors, otherwise print status.
-			if (status == SaveStatus::skipped) {
-				print_skip(tex.name);
-			} else if (status == SaveStatus::ok) {
-				print_ok(tex.name);
-			} else if (status == SaveStatus::unhandled_export_path) {
-				report_unhandled_strategy(tex.name);
-			} else {
-				report_saving_error(tex.name, (int)status);
-			}
+			save_texture(runtime, cmd_list, tex);
 		}
 	}
 }
@@ -297,9 +255,9 @@ void on_finish_effects(api::effect_runtime *runtime, api::command_list *cmd_list
 void initialize(api::effect_runtime* runtime) {
 	runtime->set_preprocessor_definition("DEBUG_ADDON", "1");
 
-	ISavingStrategy *exr_strategy = new SaveEXRStrategy();
-	ISavingStrategy *png_strategy = new SavePNGStrategy();
-	ISavingStrategy *raw_strategy = new SaveBinaryStrategy();
+	auto *exr_strategy = new SaveEXRStrategy();
+	auto *png_strategy = new SavePNGStrategy();
+	auto *raw_strategy = new SaveBinaryStrategy();
 	strategies.push_back(exr_strategy);
 	strategies.push_back(png_strategy);
 	strategies.push_back(raw_strategy); // todo: pls reflect on this code.
@@ -317,15 +275,15 @@ void push_textures(api::effect_runtime* runtime, api::effect_texture_variable va
 int update_effect(ImGuiInputTextCallbackData *cbd) {
 	textures.clear();
 
-	api::effect_runtime *runtime = reinterpret_cast<api::effect_runtime*>(cbd->UserData);
+	auto *runtime = reinterpret_cast<api::effect_runtime*>(cbd->UserData);
 	runtime->enumerate_texture_variables(cbd->Buf, push_textures, nullptr);
 
-	for (int i = 0; i < textures.size(); i++) textures.at(i).used = false;
+	for (auto& texture : textures) texture.used = false;
 	return 0;
 }
 
 void UI(api::effect_runtime *runtime) {
-	ImGui::TextColored(ImVec4(0.8, 0.9, 1., 1.0), "Hey there! \nKeep in mind most formats are unsupported, so use 32F texture formats (1, 3 or 4 channels), or 8 for ints. \nIf the exporter doesn't know how to write a format it will do a binary dump that could be injested byt the likes of ImageMagick \nMore file formats could be addded and PRed, I tried my best to make it easy for contributers.");
+	ImGui::TextColored(ImVec4(0.8, 0.9, 1., 1.0), "Hey there! \nKeep in mind most formats are unsupported, so use 32F texture formats (1, 3 or 4 channels), or 8 for ints. \nIf the exporter doesn't know how to write a format it will do a binary dump that could be ingested byt the likes of ImageMagick \nMore file formats could be added and PRed, I tried my best to make it easy for contributors.");
 
 	ImGui::InputText("Effect Name", buffer, IM_ARRAYSIZE(buffer), ImGuiInputTextFlags_::ImGuiInputTextFlags_CallbackEdit, update_effect, reinterpret_cast<void *>(runtime));
 	if (textures.empty()) {
@@ -334,7 +292,7 @@ void UI(api::effect_runtime *runtime) {
 		if (ImGui::BeginChild("TexSelect", ImVec2(-FLT_MIN, ImGui::GetFontSize() * 20), ImGuiChildFlags_Borders | ImGuiChildFlags_ResizeY)) {
 			for (int n = 0; n < textures.size(); n++) {
 				char label[32];
-				sprintf(label, "Tex %s", textures.at(n).name.c_str());
+				sprintf_s(label, "Tex %s", textures.at(n).name.c_str());
 				ImGui::SetNextItemSelectionUserData(n);
 				ImGui::Checkbox(label, (bool*)&textures[n].used);
 			}
