@@ -83,7 +83,12 @@ class StrategyManager {
         void iterate_pick_top(SaveData& data) const {
             for (ISavingStrategy *strategy : strategies) {
                 if (strategy->match(data.format)) {
-                    strategy->save(data);
+                    try {
+                        strategy->save(data);
+                    } catch (...) {
+                        message(level::error, "Exception occured while a strategy was executing!");
+                        MessageBoxA(NULL, "Runtime error!", "Exception occurred while saving the texture(s).\nPlease report to developer!", MB_ICONEXCLAMATION);
+                    }
                     break;
                 }
             }
