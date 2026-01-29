@@ -21,12 +21,5 @@ inline void save_texture(effect_runtime *runtime, command_list *cmd_list, const 
     if (!host_data.data) return;
 
     SaveData save_data(texture.get_format(runtime), texture.name, host_data.data, texture.get_desc(runtime).texture.width, texture.get_desc(runtime).texture.height, host_data.row_pitch);
-
-    assert(!strategies.empty());
-    for (ISavingStrategy *strategy : strategies) {
-        if (strategy->match(save_data.format)) {
-            strategy->save(save_data);
-            break;
-        }
-    }
+    strategy_manager->iterate_pick_top(save_data);
 }

@@ -33,7 +33,6 @@ extern "C" __declspec(dllexport) const char *NAME = "Texture Dump";
 extern "C" __declspec(dllexport) const char *DESCRIPTION = "Helper addon for debugging and analyzing shaders via external tools.";
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
 {
-    StrategyManager manager {};
 
 	switch (fdwReason)
 	{
@@ -41,10 +40,12 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
 		if (!register_addon(hModule))
 			return FALSE;
 
+	    if (!strategy_manager) strategy_manager = new StrategyManager();
+
 	    // Order sensitive!!! The ones declared first will be preferred.
-	    manager.register_strategy<SaveEXRStrategy>();
-	    manager.register_strategy<SavePNGStrategy>();
-	    manager.register_strategy<SaveBinaryStrategy>();
+	    strategy_manager->register_strategy<SaveEXRStrategy>();
+	    strategy_manager->register_strategy<SavePNGStrategy>();
+	    strategy_manager->register_strategy<SaveBinaryStrategy>();
 
 		register_overlay(nullptr, UI);
 		register_event<addon_event::init_effect_runtime>(initialize);
@@ -54,6 +55,10 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
 	    unregister_event<addon_event::init_effect_runtime>(initialize);
 	    unregister_event<addon_event::reshade_finish_effects>(on_finish_effects);
 		unregister_addon(hModule);
+
+	    delete strategy_manager;
+	    strategy_manager = nullptr;
+
 		break;
 	}
 

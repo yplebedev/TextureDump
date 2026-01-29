@@ -79,6 +79,17 @@ class StrategyManager {
         void register_strategy() requires std::derived_from<S, ISavingStrategy>{
             strategies.push_back(new S());
         }
+
+        void iterate_pick_top(SaveData& data) const {
+            for (ISavingStrategy *strategy : strategies) {
+                if (strategy->match(data.format)) {
+                    strategy->save(data);
+                    break;
+                }
+            }
+        }
     private:
         std::vector<ISavingStrategy*> strategies;
 };
+
+static StrategyManager* strategy_manager = nullptr;
