@@ -2,7 +2,7 @@
 
 #include "NamedTexture.h"
 #include "SaveData.h"
-#include "SavingStrategiesImpl.h"
+#include "StrategyManager.h"
 
 #include <reshade.hpp>
 using namespace reshade;
@@ -20,6 +20,8 @@ inline void save_texture(effect_runtime *runtime, command_list *cmd_list, const 
     subresource_data host_data = map_data(runtime->get_device(), intermediate);
     if (!host_data.data) return;
 
+    StrategyManager manager({new SaveEXRStrategy, new SavePNGStrategy, new SaveBinaryStrategy});
+
     SaveData save_data(texture.get_format(runtime), texture.name, host_data.data, texture.get_desc(runtime).texture.width, texture.get_desc(runtime).texture.height, host_data.row_pitch);
-    strategy_manager->iterate_pick_top(save_data);
+    manager.iterate_pick_top(save_data);
 }

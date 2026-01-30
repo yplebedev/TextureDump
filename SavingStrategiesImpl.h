@@ -4,7 +4,6 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include <concepts>
 
 #include "tinyexr.h"
 #include "stb_image_write.h"
@@ -67,34 +66,3 @@ private:
 		data.filename = ss.str();
 	}
 };
-
-class StrategyManager {
-    public:
-        ~StrategyManager() {
-            for (auto & strategy : strategies) delete strategy;
-            strategies.clear();
-        }
-
-        template <typename S>
-        void register_strategy() requires std::derived_from<S, ISavingStrategy>{
-            strategies.push_back(new S());
-        }
-
-        void iterate_pick_top(SaveData& data) const {
-            for (ISavingStrategy *strategy : strategies) {
-                if (strategy->match(data.format)) {
-                    try {
-                        strategy->save(data);
-                    } catch (...) {
-                        message(level::error, "Exception occured while a strategy was executing!");
-                        MessageBoxA(NULL, "Runtime error!", "Exception occurred while saving the texture(s).\nPlease report to developer!", MB_ICONEXCLAMATION);
-                    }
-                    break;
-                }
-            }
-        }
-    private:
-        std::vector<ISavingStrategy*> strategies;
-};
-
-static StrategyManager* strategy_manager = nullptr;

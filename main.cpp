@@ -5,14 +5,14 @@
 	Hi there!
 	If you are a shader developer, you likely found yourself in the wrong place. Get the actual addon from Releases!
 	If you are an addon developer, please keep in mind that this project should not be taken as a reference, rather as a possible implementation.
-	This does one specific thing, relatively well, and nothing more. Check in with ReShade docs and the #addon-programming chat in discord for better code practices.
+	This does one specific thing, relatively well, and nothing more. Check in with ReShade docs and the #addon-programming chat in discord for better addon practices.
 
 	For contributors:
 		!!! IMPORTANT !!!
 		Declare RESHADE_PATH env variable to the !root! of a cloned repo of ReShade. This is required to compile the project!
 
 		In order to declare a new saving path, go to SavingStrategiesImpl.h, and inherit from ISavingStrategy.
-		Make sure to override all methods and the supported field. Then proceed to the bottom of this file and use manager->register<YourTypeHere>() to register the strategy.
+		Make sure to override all methods and the supported field. Finally, go to StrategyManager, and find the StrategyManager init, and register accordingly.
 */
 #define TINYEXR_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -31,36 +31,23 @@ using namespace reshade;
 
 extern "C" __declspec(dllexport) const char *NAME = "Texture Dump";
 extern "C" __declspec(dllexport) const char *DESCRIPTION = "Helper addon for debugging and analyzing shaders via external tools.";
-BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
-{
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID) {
+	switch (fdwReason) {
+	    case DLL_PROCESS_ATTACH:
+		    if (!register_addon(hModule))
+			    return FALSE;
 
-	switch (fdwReason)
-	{
-	case DLL_PROCESS_ATTACH:
-		if (!register_addon(hModule))
-			return FALSE;
-
-	    if (!strategy_manager) strategy_manager = new StrategyManager();
-
-	    // Order sensitive!!! The ones declared first will be preferred.
-	    strategy_manager->register_strategy<SaveEXRStrategy>();
-	    strategy_manager->register_strategy<SavePNGStrategy>();
-	    strategy_manager->register_strategy<SaveBinaryStrategy>();
-
-		register_overlay(nullptr, UI);
-		register_event<addon_event::init_effect_runtime>(initialize);
-		register_event<addon_event::reshade_finish_effects>(on_finish_effects);
-		break;
-	case DLL_PROCESS_DETACH:
-	    unregister_event<addon_event::init_effect_runtime>(initialize);
-	    unregister_event<addon_event::reshade_finish_effects>(on_finish_effects);
-		unregister_addon(hModule);
-
-	    delete strategy_manager;
-	    strategy_manager = nullptr;
-
-		break;
+		    register_overlay(nullptr, UI);
+		    register_event<addon_event::init_effect_runtime>(initialize);
+		    register_event<addon_event::reshade_finish_effects>(on_finish_effects);
+		    break;
+	    case DLL_PROCESS_DETACH:
+	        unregister_event<addon_event::init_effect_runtime>(initialize);
+	        unregister_event<addon_event::reshade_finish_effects>(on_finish_effects);
+		    unregister_addon(hModule);
+		    break;
 	}
+
 
 	return TRUE;
 }
