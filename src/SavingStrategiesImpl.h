@@ -3,7 +3,6 @@
 #include <string>
 #include <iostream>
 #include <fstream>
-#include <vector>
 
 #include "tinyexr.h"
 #include "stb_image_write.h"
